@@ -1,0 +1,30 @@
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t my-node-app .
+    - docker save my-node-app > my-node-app.tar
+  artifacts:
+    paths:
+      - my-node-app.tar
+
+deploy:
+  stage: deploy
+  image: node:18
+  script:
+    - apt-get update && apt-get install -y sshpass
+    - sshpass -p "$SSH_PASSWORD" scp -o StrictHostKeyChecking=no my-node-app.tar $SSH_USER@$SSH_HOST:/home/$SSH_USER/
+    - sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "docker load < /home/$SSH_USER/my-node-app.tar && docker stop my-node-app || true && docker rm my-node-app || true && docker run -d -p 3000:3000 --name my-node-app my-node-app"
+  only:
+    - master
+
+variables:
+  SSH_USER: ""
+  SSH_PASSWORD: ""
+  SSH_HOST: ""
